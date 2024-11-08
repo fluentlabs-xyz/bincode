@@ -1,5 +1,6 @@
 #![deny(missing_docs)]
 #![allow(unknown_lints, bare_trait_objects, deprecated)]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 //! Bincode is a crate for encoding and decoding using a tiny binary
 //! serialization strategy.  Using it, you can easily go from having
@@ -31,6 +32,9 @@
 
 #[macro_use]
 extern crate serde;
+extern crate alloc;
+#[cfg(feature = "std")]
+extern crate core;
 
 pub mod config;
 /// Deserialize bincode data to a Rust data structure.

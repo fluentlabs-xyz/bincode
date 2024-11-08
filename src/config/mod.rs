@@ -27,11 +27,12 @@
 //!     .allow_trailing_bytes();
 //! ```
 
+use alloc::vec::Vec;
+use core::marker::PhantomData;
 use de::read::BincodeRead;
 use error::Result;
 use serde;
 use std::io::{Read, Write};
-use std::marker::PhantomData;
 
 pub(crate) use self::endian::BincodeByteOrder;
 pub(crate) use self::int::IntEncoding;

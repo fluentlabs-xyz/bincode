@@ -1,5 +1,5 @@
+use core::mem::size_of;
 use std::io::Write;
-use std::mem::size_of;
 
 use super::Options;
 use de::read::BincodeRead;

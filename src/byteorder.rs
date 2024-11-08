@@ -1,8 +1,8 @@
 // Copyright (c) 2015 Andrew Gallant
 
+use core::ptr::copy_nonoverlapping;
 use std::io;
 use std::io::Result;
-use std::ptr::copy_nonoverlapping;
 
 #[derive(Copy, Clone)]
 pub struct LittleEndian;
@@ -18,7 +18,7 @@ pub type NativeEndian = BigEndian;
 
 macro_rules! read_num_bytes {
     ($ty:ty, $size:expr, $src:expr, $which:ident) => {{
-        assert!($size == ::std::mem::size_of::<$ty>());
+        assert!($size == ::core::mem::size_of::<$ty>());
         assert!($size <= $src.len());
         let mut data: $ty = 0;
         unsafe {

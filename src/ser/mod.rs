@@ -1,5 +1,5 @@
+use core::u32;
 use std::io::Write;
-use std::u32;
 
 use serde;
 
@@ -8,7 +8,7 @@ use byteorder::WriteBytesExt;
 use super::config::{IntEncoding, SizeLimit};
 use super::{Error, ErrorKind, Result};
 use config::{BincodeByteOrder, Options};
-use std::mem::size_of;
+use core::mem::size_of;
 
 /// An Serializer that encodes values directly into a Writer.
 ///

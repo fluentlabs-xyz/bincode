@@ -1,6 +1,6 @@
+use core::marker::PhantomData;
 use serde;
 use std::io::{Read, Write};
-use std::marker::PhantomData;
 
 use config::{Infinite, InternalOptions, Options, SizeLimit, TrailingBytes};
 use de::read::BincodeRead;

@@ -1,12 +1,12 @@
+use core::str::Utf8Error;
+use core::{error, fmt};
 use std::error::Error as StdError;
 use std::io;
-use std::str::Utf8Error;
-use std::{error, fmt};
 
 use serde;
 
 /// The result of a serialization or deserialization operation.
-pub type Result<T> = ::std::result::Result<T, Error>;
+pub type Result<T> = ::core::result::Result<T, Error>;
 
 /// An error that can be produced during (de)serializing.
 pub type Error = Box<ErrorKind>;
