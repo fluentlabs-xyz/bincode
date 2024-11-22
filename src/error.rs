@@ -1,6 +1,12 @@
+use alloc::boxed::Box;
+use alloc::string::{String, ToString};
+#[cfg(not(feature = "std"))]
+use core::error::Error as StdError;
 use core::str::Utf8Error;
 use core::{error, fmt};
+#[cfg(feature = "std")]
 use std::error::Error as StdError;
+#[cfg(feature = "std")]
 use std::io;
 
 use serde;
@@ -11,12 +17,17 @@ pub type Result<T> = ::core::result::Result<T, Error>;
 /// An error that can be produced during (de)serializing.
 pub type Error = Box<ErrorKind>;
 
+#[derive(Debug)]
+pub struct IoError {
+    pub msg: String,
+}
+
 /// The kind of error that can be produced during a serialization or deserialization.
 #[derive(Debug)]
 pub enum ErrorKind {
     /// If the error stems from the reader/writer that is being used
     /// during (de)serialization, that error will be stored and returned here.
-    Io(io::Error),
+    Io(IoError),
     /// Returned if the deserializer attempts to deserialize a string that is not valid utf8
     InvalidUtf8Encoding(Utf8Error),
     /// Returned if the deserializer attempts to deserialize a bool that was
@@ -37,6 +48,11 @@ pub enum ErrorKind {
     SequenceMustHaveLength,
     /// A custom error message from Serde.
     Custom(String),
+
+    ///
+    Interrupted,
+    ReadExactEof,
+    WriteAllEof,
 }
 
 impl StdError for ErrorKind {
@@ -73,8 +89,8 @@ impl StdError for ErrorKind {
     }
 }
 
-impl From<io::Error> for Error {
-    fn from(err: io::Error) -> Error {
+impl From<IoError> for Error {
+    fn from(err: IoError) -> Error {
         ErrorKind::Io(err).into()
     }
 }

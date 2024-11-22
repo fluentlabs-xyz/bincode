@@ -1,12 +1,17 @@
 use config::{BincodeByteOrder, Options};
-use std::io::Read;
 
 use self::read::{BincodeRead, IoReader, SliceReader};
+use alloc::boxed::Box;
+use alloc::string::String;
+use alloc::vec::Vec;
+// #[cfg(feature = "std")]
+use alloc::string::ToString;
 use byteorder::ReadBytesExt;
 use config::{IntEncoding, SizeLimit};
 use serde;
 use serde::de::Error as DeError;
 use serde::de::IntoDeserializer;
+use types::Read;
 use {Error, ErrorKind, Result};
 
 /// Specialized ways to read data into bincode.
@@ -37,7 +42,7 @@ macro_rules! impl_deserialize_literal {
             self.read_literal_type::<$ty>()?;
             self.reader
                 .$read::<<O::Endian as BincodeByteOrder>::Endian>()
-                .map_err(Into::into)
+                .map_err(|e| Error::new(ErrorKind::Custom("failed to read".to_string())))
         }
     };
 }
@@ -70,7 +75,9 @@ impl<'de, R: BincodeRead<'de>, O: Options> Deserializer<R, O> {
 
     pub(crate) fn deserialize_byte(&mut self) -> Result<u8> {
         self.read_literal_type::<u8>()?;
-        self.reader.read_u8().map_err(Into::into)
+        self.reader
+            .read_u8()
+            .map_err(|e| Error::new(ErrorKind::Custom("deserialize_byte failed".to_string())))
     }
 
     impl_deserialize_literal! { deserialize_literal_u16 : u16 = read_u16() }
@@ -154,7 +161,8 @@ where
         self.read_literal_type::<f32>()?;
         let value = self
             .reader
-            .read_f32::<<O::Endian as BincodeByteOrder>::Endian>()?;
+            .read_f32::<<O::Endian as BincodeByteOrder>::Endian>()
+            .map_err(|e| Box::new(ErrorKind::Custom("read_f32 failed".to_string())))?;
         visitor.visit_f32(value)
     }
 
@@ -165,7 +173,8 @@ where
         self.read_literal_type::<f64>()?;
         let value = self
             .reader
-            .read_f64::<<O::Endian as BincodeByteOrder>::Endian>()?;
+            .read_f64::<<O::Endian as BincodeByteOrder>::Endian>()
+            .map_err(|e| Error::new(ErrorKind::Custom("failed to read_f64".to_string())))?;
         visitor.visit_f64(value)
     }
 

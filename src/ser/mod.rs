@@ -1,14 +1,17 @@
 use core::u32;
+#[cfg(feature = "std")]
 use std::io::Write;
 
 use serde;
 
+#[cfg(feature = "std")]
 use byteorder::WriteBytesExt;
 
 use super::config::{IntEncoding, SizeLimit};
 use super::{Error, ErrorKind, Result};
 use config::{BincodeByteOrder, Options};
 use core::mem::size_of;
+use types::Write;
 
 /// An Serializer that encodes values directly into a Writer.
 ///

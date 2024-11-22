@@ -27,18 +27,19 @@
 //!     .allow_trailing_bytes();
 //! ```
 
-use alloc::vec::Vec;
-use core::marker::PhantomData;
-use de::read::BincodeRead;
-use error::Result;
-use serde;
-use std::io::{Read, Write};
-
 pub(crate) use self::endian::BincodeByteOrder;
 pub(crate) use self::int::IntEncoding;
 pub(crate) use self::internal::*;
 pub(crate) use self::limit::SizeLimit;
 pub(crate) use self::trailing::TrailingBytes;
+use alloc::vec::Vec;
+use core::marker::PhantomData;
+use de::read::BincodeRead;
+use error::Result;
+use serde;
+#[cfg(feature = "std")]
+use std::io::{Read, Write};
+use types::{Read, Write};
 
 pub use self::endian::{BigEndian, LittleEndian, NativeEndian};
 pub use self::int::{FixintEncoding, VarintEncoding};

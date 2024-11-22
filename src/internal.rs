@@ -1,9 +1,13 @@
 use core::marker::PhantomData;
 use serde;
+#[cfg(feature = "std")]
 use std::io::{Read, Write};
 
+use alloc::vec::Vec;
 use config::{Infinite, InternalOptions, Options, SizeLimit, TrailingBytes};
 use de::read::BincodeRead;
+use types::Read;
+use types::Write;
 use Result;
 
 pub(crate) fn serialize_into<W, T: ?Sized, O>(writer: W, value: &T, mut options: O) -> Result<()>

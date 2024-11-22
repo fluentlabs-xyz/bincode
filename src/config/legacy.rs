@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+#[cfg(feature = "std")]
 use std::io::{Read, Write};
 
 use self::EndianOption::*;
@@ -6,6 +8,7 @@ use super::{DefaultOptions, Options};
 use de::read::BincodeRead;
 use error::Result;
 use serde;
+use types::{Read, Write};
 
 /// A configuration builder whose options Bincode will use
 /// while serializing and deserializing.

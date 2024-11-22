@@ -1,9 +1,14 @@
+use alloc::boxed::Box;
 use core::mem::size_of;
+#[cfg(feature = "std")]
 use std::io::Write;
 
 use super::Options;
+use alloc::format;
+use alloc::string::ToString;
 use de::read::BincodeRead;
 use error::{ErrorKind, Result};
+use types::Write;
 
 pub trait IntEncoding {
     /// Gets the size (in bytes) that a value would be serialized to.
