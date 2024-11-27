@@ -7,11 +7,10 @@ use core::cmp;
 use core::convert::TryInto;
 use core::fmt;
 use core::io::BorrowedBuf;
+use core::io::BorrowedCursor;
 use core::slice::memchr;
+use core::str::{from_utf8, Utf8Error};
 use {Error, ErrorKind};
-
-#[cfg(feature = "std")]
-pub type Result<T> = result::Result<T, Error>;
 
 const DEFAULT_BUF_SIZE: usize = 8 * 1024;
 
@@ -40,10 +39,11 @@ where
 
     // SAFETY: the caller promises to only append data to `buf`
     let appended = unsafe { g.buf.get_unchecked(g.len..) };
-    if str::from_utf8(appended).is_err() {
+    let appended_utf8 = from_utf8(appended);
+    if appended_utf8.is_err() {
         ret.and_then(|_| {
             Err(Error::new(ErrorKind::InvalidUtf8Encoding(
-                "InvalidUtf8Encoding",
+                appended_utf8.unwrap_err(),
             )))
         })
     } else {
@@ -84,7 +84,7 @@ pub(crate) fn default_read_to_end<R: Read + ?Sized>(
                     return Ok(n);
                 }
                 Err(ref e) if e.is_interrupted() => continue,
-                Err(e) => return Err(e),
+                Err(e) => return Err(Error::from(e)),
             }
         }
     }
@@ -131,8 +131,8 @@ pub(crate) fn default_read_to_end<R: Read + ?Sized>(
         loop {
             match r.read_buf(cursor.reborrow()) {
                 Ok(()) => break,
-                Err(e) if e.kind().is_interrupted() => continue,
-                Err(e) => return Err(e),
+                Err(e) if e.is_interrupted() => continue,
+                Err(e) => return Err(e.into()),
             }
         }
 
@@ -210,7 +210,10 @@ pub(crate) fn default_read_to_string<R: Read + ?Sized>(
 //     write(buf)
 // }
 
-pub(crate) fn default_read_exact<R: Read + ?Sized>(this: &mut R, mut buf: &mut [u8]) -> Result<()> {
+pub(crate) fn default_read_exact<R: Read + ?Sized>(
+    this: &mut R,
+    mut buf: &mut [u8],
+) -> core::result::Result<(), ErrorKind> {
     while !buf.is_empty() {
         match this.read(buf) {
             Ok(0) => break,
@@ -222,43 +225,46 @@ pub(crate) fn default_read_exact<R: Read + ?Sized>(this: &mut R, mut buf: &mut [
         }
     }
     if !buf.is_empty() {
-        Err(Error::new(ErrorKind::ReadExactEof))
+        Err(ErrorKind::ReadExactEof)
     } else {
         Ok(())
     }
 }
 
-/*pub(crate) fn default_read_buf<F>(read: F, mut cursor: BorrowedCursor<'_>) -> Result<()>
+pub(crate) fn default_read_buf<F>(
+    read: F,
+    mut cursor: BorrowedCursor<'_>,
+) -> core::result::Result<(), ErrorKind>
 where
-    F: FnOnce(&mut [u8]) -> Result<usize>,
+    F: FnOnce(&mut [u8]) -> core::result::Result<usize, ErrorKind>,
 {
     let n = read(cursor.ensure_init().init_mut())?;
     cursor.advance(n);
     Ok(())
 }
 
-pub(crate) fn default_read_buf_exact<R: Read + ?Sized>(
-    this: &mut R,
-    mut cursor: BorrowedCursor<'_>,
-) -> Result<()> {
-    while cursor.capacity() > 0 {
-        let prev_written = cursor.written();
-        match this.read_buf(cursor.reborrow()) {
-            Ok(()) => {}
-            Err(e) if e.is_interrupted() => continue,
-            Err(e) => return Err(e),
-        }
-
-        if cursor.written() == prev_written {
-            return Err(/*Error::READ_EXACT_EOF*/ Error::new(Err));
-        }
-    }
-
-    Ok(())
-}*/
+// pub(crate) fn default_read_buf_exact<R: Read + ?Sized>(
+//     this: &mut R,
+//     mut cursor: BorrowedCursor<'_>,
+// ) -> Result<()> {
+//     while cursor.capacity() > 0 {
+//         let prev_written = cursor.written();
+//         match this.read_buf(cursor.reborrow()) {
+//             Ok(()) => {}
+//             Err(e) if e.is_interrupted() => continue,
+//             Err(e) => return Err(e),
+//         }
+//
+//         if cursor.written() == prev_written {
+//             return Err(/*Error::READ_EXACT_EOF*/ Error::new(Err));
+//         }
+//     }
+//
+//     Ok(())
+// }
 pub trait Read {
     // #[stable(feature = "rust1", since = "1.0.0")]
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize>;
+    fn read(&mut self, buf: &mut [u8]) -> core::result::Result<usize, ErrorKind>;
 
     // #[stable(feature = "iovec", since = "1.36.0")]
     // fn read_vectored(&mut self, bufs: &mut [IoSliceMut<'_>]) -> Result<usize> {
@@ -281,14 +287,14 @@ pub trait Read {
     }
 
     // #[stable(feature = "read_exact", since = "1.6.0")]
-    fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
+    fn read_exact(&mut self, buf: &mut [u8]) -> core::result::Result<(), ErrorKind> {
         default_read_exact(self, buf)
     }
 
     // #[unstable(feature = "read_buf", issue = "78485")]
-    // fn read_buf(&mut self, buf: BorrowedCursor<'_>) -> Result<()> {
-    //     default_read_buf(|b| self.read(b), buf)
-    // }
+    fn read_buf(&mut self, buf: BorrowedCursor<'_>) -> core::result::Result<(), ErrorKind> {
+        default_read_buf(|b| self.read(b), buf)
+    }
 
     // #[unstable(feature = "read_buf", issue = "78485")]
     // fn read_buf_exact(&mut self, cursor: BorrowedCursor<'_>) -> Result<()> {
@@ -337,6 +343,16 @@ pub fn read_to_string<R: Read>(mut reader: R) -> Result<String> {
     let mut buf = String::new();
     reader.read_to_string(&mut buf)?;
     Ok(buf)
+}
+
+impl<T> Write for &mut Vec<T> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        todo!()
+    }
+
+    fn flush(&mut self) -> Result<()> {
+        todo!()
+    }
 }
 
 pub trait Write {
@@ -534,7 +550,7 @@ fn skip_until<R: BufRead + ?Sized>(r: &mut R, delim: u8) -> Result<usize> {
         let (done, used) = {
             let available = match r.fill_buf() {
                 Ok(n) => n,
-                Err(ref e) if e.kind() == ErrorKind::Interrupted => continue,
+                Err(ref e) if e.is_interrupted() => continue,
                 Err(e) => return Err(e),
             };
             match memchr::memchr(delim, available) {
@@ -632,7 +648,7 @@ impl<T, U> Chain<T, U> {
 
 // #[stable(feature = "rust1", since = "1.0.0")]
 impl<T: Read, U: Read> Read for Chain<T, U> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> core::result::Result<usize, ErrorKind> {
         if !self.done_first {
             match self.first.read(buf)? {
                 0 if !buf.is_empty() => self.done_first = true,
@@ -782,7 +798,7 @@ impl<T> Take<T> {
 
 // #[stable(feature = "rust1", since = "1.0.0")]
 impl<T: Read> Read for Take<T> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> core::result::Result<usize, ErrorKind> {
         // Don't call into inner reader at all at EOF because it may still block
         if self.limit == 0 {
             return Ok(0);
@@ -841,6 +857,115 @@ impl<T: Read> Read for Take<T> {
     //
     //     Ok(())
     // }
+}
+
+impl Read for &[u8] {
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> core::result::Result<usize, ErrorKind> {
+        let amt = cmp::min(buf.len(), self.len());
+        let (a, b) = self.split_at(amt);
+
+        // First check if the amount of bytes we want to read is small:
+        // `copy_from_slice` will generally expand to a call to `memcpy`, and
+        // for a single byte the overhead is significant.
+        if amt == 1 {
+            buf[0] = a[0];
+        } else {
+            buf[..amt].copy_from_slice(a);
+        }
+
+        *self = b;
+        Ok(amt)
+    }
+
+    // #[inline]
+    // fn read_buf(&mut self, mut cursor: BorrowedCursor<'_>) -> io::Result<()> {
+    //     let amt = cmp::min(cursor.capacity(), self.len());
+    //     let (a, b) = self.split_at(amt);
+    //
+    //     cursor.append(a);
+    //
+    //     *self = b;
+    //     Ok(())
+    // }
+    //
+    // #[inline]
+    // fn read_vectored(&mut self, bufs: &mut [IoSliceMut<'_>]) -> io::Result<usize> {
+    //     let mut nread = 0;
+    //     for buf in bufs {
+    //         nread += self.read(buf)?;
+    //         if self.is_empty() {
+    //             break;
+    //         }
+    //     }
+    //
+    //     Ok(nread)
+    // }
+    //
+    // #[inline]
+    // fn is_read_vectored(&self) -> bool {
+    //     true
+    // }
+    //
+    // #[inline]
+    // fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<()> {
+    //     if buf.len() > self.len() {
+    //         // `read_exact` makes no promise about the content of `buf` if it
+    //         // fails so don't bother about that.
+    //         *self = &self[self.len()..];
+    //         return Err(io::Error::READ_EXACT_EOF);
+    //     }
+    //     let (a, b) = self.split_at(buf.len());
+    //
+    //     // First check if the amount of bytes we want to read is small:
+    //     // `copy_from_slice` will generally expand to a call to `memcpy`, and
+    //     // for a single byte the overhead is significant.
+    //     if buf.len() == 1 {
+    //         buf[0] = a[0];
+    //     } else {
+    //         buf.copy_from_slice(a);
+    //     }
+    //
+    //     *self = b;
+    //     Ok(())
+    // }
+    //
+    // #[inline]
+    // fn read_buf_exact(&mut self, mut cursor: BorrowedCursor<'_>) -> io::Result<()> {
+    //     if cursor.capacity() > self.len() {
+    //         // Append everything we can to the cursor.
+    //         cursor.append(*self);
+    //         *self = &self[self.len()..];
+    //         return Err(io::Error::READ_EXACT_EOF);
+    //     }
+    //     let (a, b) = self.split_at(cursor.capacity());
+    //
+    //     cursor.append(a);
+    //
+    //     *self = b;
+    //     Ok(())
+    // }
+
+    #[inline]
+    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> Result<usize> {
+        let len = self.len();
+        buf.try_reserve(len)
+            .map_err(|e| Error::from(ErrorKind::Custom(e.to_string())))?;
+        buf.extend_from_slice(*self);
+        *self = &self[len..];
+        Ok(len)
+    }
+
+    #[inline]
+    fn read_to_string(&mut self, buf: &mut String) -> Result<usize> {
+        let content = from_utf8(self).map_err(|e| Error::new(ErrorKind::InvalidUtf8Encoding(e)))?;
+        let len = self.len();
+        buf.try_reserve(len)
+            .map_err(|e| Error::from(ErrorKind::Custom(e.to_string())))?;
+        buf.push_str(content);
+        *self = &self[len..];
+        Ok(len)
+    }
 }
 
 // #[stable(feature = "rust1", since = "1.0.0")]
@@ -923,7 +1048,7 @@ fn inlined_slow_read_byte<R: Read>(reader: &mut R) -> Option<Result<u8>> {
             Ok(0) => None,
             Ok(..) => Some(Ok(byte)),
             Err(ref e) if e.is_interrupted() => continue,
-            Err(e) => Some(Err(e)),
+            Err(e) => Some(Err(Box::new(e))),
         };
     }
 }

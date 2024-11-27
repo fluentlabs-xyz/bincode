@@ -77,9 +77,9 @@ impl<R> IoReader<R> {
 
 impl<'storage> Read for SliceReader<'storage> {
     #[inline(always)]
-    fn read(&mut self, out: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, out: &mut [u8]) -> core::result::Result<usize, ErrorKind> {
         if out.len() > self.slice.len() {
-            return Err(Error::new(ErrorKind::WriteAllEof));
+            return Err(ErrorKind::WriteAllEof);
         }
         let (read_slice, remaining) = self.slice.split_at(out.len());
         out.copy_from_slice(read_slice);
@@ -89,18 +89,18 @@ impl<'storage> Read for SliceReader<'storage> {
     }
 
     #[inline(always)]
-    fn read_exact(&mut self, out: &mut [u8]) -> Result<()> {
+    fn read_exact(&mut self, out: &mut [u8]) -> core::result::Result<(), ErrorKind> {
         self.read(out).map(|_| ())
     }
 }
 
 impl<R: Read> Read for IoReader<R> {
     #[inline(always)]
-    fn read(&mut self, out: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, out: &mut [u8]) -> core::result::Result<usize, ErrorKind> {
         self.reader.read(out)
     }
     #[inline(always)]
-    fn read_exact(&mut self, out: &mut [u8]) -> Result<()> {
+    fn read_exact(&mut self, out: &mut [u8]) -> core::result::Result<(), ErrorKind> {
         self.reader.read_exact(out)
     }
 }

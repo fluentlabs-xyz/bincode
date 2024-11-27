@@ -2,6 +2,7 @@ use alloc::boxed::Box;
 use alloc::string::{String, ToString};
 #[cfg(not(feature = "std"))]
 use core::error::Error as StdError;
+use core::fmt::{Display, Formatter};
 use core::str::Utf8Error;
 use core::{error, fmt};
 #[cfg(feature = "std")]
@@ -11,16 +12,24 @@ use std::io;
 
 use serde;
 
-/// The result of a serialization or deserialization operation.
-pub type Result<T> = ::core::result::Result<T, Error>;
-
 /// An error that can be produced during (de)serializing.
 pub type Error = Box<ErrorKind>;
+
+/// The result of a serialization or deserialization operation.
+pub type Result<T> = ::core::result::Result<T, Error>;
 
 #[derive(Debug)]
 pub struct IoError {
     pub msg: String,
 }
+
+impl Display for IoError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
+}
+
+impl StdError for IoError {}
 
 /// The kind of error that can be produced during a serialization or deserialization.
 #[derive(Debug)]
@@ -51,14 +60,26 @@ pub enum ErrorKind {
 
     ///
     Interrupted,
+    ///
     ReadExactEof,
+    ///
     WriteAllEof,
+}
+
+impl ErrorKind {
+    ///
+    pub fn is_interrupted(&self) -> bool {
+        match self {
+            ErrorKind::Interrupted => true,
+            _ => false,
+        }
+    }
 }
 
 impl StdError for ErrorKind {
     fn description(&self) -> &str {
         match *self {
-            ErrorKind::Io(ref err) => error::Error::description(err),
+            ErrorKind::Io(ref err) => &err.msg,
             ErrorKind::InvalidUtf8Encoding(_) => "string is not valid utf8",
             ErrorKind::InvalidBoolEncoding(_) => "invalid u8 while decoding bool",
             ErrorKind::InvalidCharEncoding => "char is not valid",
@@ -71,6 +92,9 @@ impl StdError for ErrorKind {
             }
             ErrorKind::SizeLimit => "the size limit has been reached",
             ErrorKind::Custom(ref msg) => msg,
+            ErrorKind::Interrupted => "Interrupted",
+            ErrorKind::ReadExactEof => "ReadExactEof",
+            ErrorKind::WriteAllEof => "WriteAllEof",
         }
     }
 
@@ -85,6 +109,9 @@ impl StdError for ErrorKind {
             ErrorKind::DeserializeAnyNotSupported => None,
             ErrorKind::SizeLimit => None,
             ErrorKind::Custom(_) => None,
+            ErrorKind::Interrupted => None,
+            ErrorKind::ReadExactEof => None,
+            ErrorKind::WriteAllEof => None,
         }
     }
 }
@@ -114,6 +141,9 @@ impl fmt::Display for ErrorKind {
                 "Bincode does not support the serde::Deserializer::deserialize_any method"
             ),
             ErrorKind::Custom(ref s) => s.fmt(fmt),
+            ErrorKind::Interrupted => write!(fmt, "{}", self.description()),
+            ErrorKind::ReadExactEof => write!(fmt, "{}", self.description()),
+            ErrorKind::WriteAllEof => write!(fmt, "{}", self.description()),
         }
     }
 }
