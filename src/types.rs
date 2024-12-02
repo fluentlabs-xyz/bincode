@@ -10,6 +10,7 @@ use core::io::BorrowedBuf;
 use core::io::BorrowedCursor;
 use core::slice::memchr;
 use core::str::{from_utf8, Utf8Error};
+use core::{io, mem};
 use {Error, ErrorKind};
 
 const DEFAULT_BUF_SIZE: usize = 8 * 1024;
@@ -239,7 +240,9 @@ where
     F: FnOnce(&mut [u8]) -> core::result::Result<usize, ErrorKind>,
 {
     let n = read(cursor.ensure_init().init_mut())?;
-    cursor.advance(n);
+    unsafe {
+        cursor.advance(n);
+    }
     Ok(())
 }
 
@@ -345,16 +348,6 @@ pub fn read_to_string<R: Read>(mut reader: R) -> Result<String> {
     Ok(buf)
 }
 
-impl<T> Write for &mut Vec<T> {
-    fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        todo!()
-    }
-
-    fn flush(&mut self) -> Result<()> {
-        todo!()
-    }
-}
-
 pub trait Write {
     // #[stable(feature = "rust1", since = "1.0.0")]
     fn write(&mut self, buf: &[u8]) -> Result<usize>;
@@ -453,6 +446,59 @@ pub trait Write {
         Self: Sized,
     {
         self
+    }
+}
+
+impl<T> Write for &mut Vec<T> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        todo!()
+    }
+
+    fn flush(&mut self) -> Result<()> {
+        todo!()
+    }
+}
+
+impl Write for &mut [u8] {
+    #[inline]
+    fn write(&mut self, data: &[u8]) -> Result<usize> {
+        let amt = cmp::min(data.len(), self.len());
+        let (a, b) = mem::take(self).split_at_mut(amt);
+        a.copy_from_slice(&data[..amt]);
+        *self = b;
+        Ok(amt)
+    }
+
+    // #[inline]
+    // fn write_vectored(&mut self, bufs: &[IoSlice<'_>]) -> Result<usize> {
+    //     let mut nwritten = 0;
+    //     for buf in bufs {
+    //         nwritten += self.write(buf)?;
+    //         if self.is_empty() {
+    //             break;
+    //         }
+    //     }
+    //
+    //     Ok(nwritten)
+    // }
+
+    #[inline]
+    fn is_write_vectored(&self) -> bool {
+        true
+    }
+
+    #[inline]
+    fn write_all(&mut self, data: &[u8]) -> Result<()> {
+        if self.write(data)? == data.len() {
+            Ok(())
+        } else {
+            Err(Error::new(ErrorKind::WriteAllEof))
+        }
+    }
+
+    #[inline]
+    fn flush(&mut self) -> Result<()> {
+        Ok(())
     }
 }
 

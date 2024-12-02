@@ -4,6 +4,7 @@
 #![feature(core_io_borrowed_buf)]
 #![feature(specialization)]
 #![feature(slice_internals)]
+#![feature(error_in_core)]
 
 //! Bincode is a crate for encoding and decoding using a tiny binary
 //! serialization strategy.  Using it, you can easily go from having
@@ -56,6 +57,7 @@ pub use error::{Error, ErrorKind, Result};
 pub use ser::Serializer;
 
 use alloc::vec::Vec;
+use types::Write;
 
 /// Get a default configuration object.
 ///
@@ -97,11 +99,10 @@ pub fn options() -> DefaultOptions {
 /// the same as that used by the `DefaultOptions` struct. See the
 /// [config](config/index.html#options-struct-vs-bincode-functions)
 /// module for more details
-#[cfg(feature = "std")]
-// TODO need it
+// #[cfg(feature = "std")]
 pub fn serialize_into<W, T: ?Sized>(writer: W, value: &T) -> Result<()>
 where
-    W: std::io::Write,
+    W: Write,
     T: serde::Serialize,
 {
     DefaultOptions::new()
