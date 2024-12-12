@@ -449,9 +449,10 @@ pub trait Write {
     }
 }
 
-impl<T> Write for &mut Vec<T> {
+impl Write for &mut Vec<u8> {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        todo!()
+        self.extend_from_slice(buf);
+        Ok(buf.len())
     }
 
     fn flush(&mut self) -> Result<()> {
